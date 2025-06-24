@@ -73,22 +73,36 @@ def main():
                     st.error(f"❌ Could not detect EE/CE sheet — available: {progress_sheets}")
                     return
 
-                df = pd.read_excel(progress_file, sheet_name=sheet_name)
-                section_titles = df.iloc[:, 0].astype(str)
+                raw_df = pd.read_excel(progress_file, sheet_name=sheet_name, header=None)
+                section_titles = raw_df.iloc[:, 0].astype(str)
 
-                # STEP 4 — Auto Update Flags
-                st.header("Step 4: Auto Update Progress File")
+                # === AUTO-DETECT HEADER ROW ===
+                header_row_idx = None
+                for i in range(0, 15):  # check first 15 rows
+                    row_values = raw_df.iloc[i].astype(str).str.lower().tolist()
+                    if any("flag" in val for val in row_values):
+                        header_row_idx = i
+                        break
 
-                # === Update core courses ===
+                if header_row_idx is None:
+                    st.error("❌ Could not find header row with 'Flag' column!")
+                    return
+
+                df = pd.read_excel(progress_file, sheet_name=sheet_name, header=header_row_idx)
+                df.columns = dedup_columns(df.columns)
+
                 flag_columns = df.columns[df.columns.str.contains("flag", case=False, na=False)]
                 if len(flag_columns) == 0:
-                    st.error("❌ Could not find any 'Flag' columns in progress file!")
+                    st.error("❌ Could not find any 'Flag' columns after detecting header!")
                     return
 
                 flag_col = flag_columns[0]
 
                 updated_df = df.copy()
                 updated_df[flag_col] = pd.to_numeric(updated_df[flag_col], errors="coerce").fillna(0).astype(int)
+
+                # STEP 4 — Auto Update Flags
+                st.header("Step 4: Auto Update Progress File")
 
                 course_code_pattern = re.compile(r"\b([A-Z]{4}\s?\d{3})\b")
 

@@ -74,35 +74,34 @@ def main():
                     return
 
                 raw_df = pd.read_excel(progress_file, sheet_name=sheet_name, header=None)
-                section_titles = raw_df.iloc[:, 0].astype(str)
+                st.success(f"✅ Loaded sheet: {sheet_name} — total rows: {len(raw_df)}")
 
-                # === AUTO-DETECT HEADER ROW ===
-                header_row_idx = None
-                for i in range(0, 15):  # check first 15 rows
-                    row_values = raw_df.iloc[i].astype(str).str.lower().tolist()
-                    if any("flag" in val for val in row_values):
-                        header_row_idx = i
-                        break
+                # === STEP 4: Select header row ===
+                st.header("Step 4: Select Header Row")
+                possible_rows = list(range(8, 16))  # Row 8~15
+                row_selection = st.radio(
+                    "Select header row (Excel row number):",
+                    options=possible_rows,
+                    format_func=lambda x: f"Row {x+1}"
+                )
 
-                if header_row_idx is None:
-                    st.error("❌ Could not find header row with 'Flag' column!")
-                    return
-
+                header_row_idx = row_selection
                 df = pd.read_excel(progress_file, sheet_name=sheet_name, header=header_row_idx)
-                df.columns = dedup_columns(df.columns)
+                df.columns = dedup_columns([col.strip() for col in df.columns])
+
+                st.write(f"📋 Columns detected: {list(df.columns)}")
 
                 flag_columns = df.columns[df.columns.str.contains("flag", case=False, na=False)]
                 if len(flag_columns) == 0:
-                    st.error("❌ Could not find any 'Flag' columns after detecting header!")
+                    st.error("❌ Could not find any 'Flag' columns! Try another header row.")
                     return
 
                 flag_col = flag_columns[0]
-
                 updated_df = df.copy()
                 updated_df[flag_col] = pd.to_numeric(updated_df[flag_col], errors="coerce").fillna(0).astype(int)
 
-                # STEP 4 — Auto Update Flags
-                st.header("Step 4: Auto Update Progress File")
+                # === Step 5 — Update Flags ===
+                st.header("Step 5: Auto Update Progress File")
 
                 course_code_pattern = re.compile(r"\b([A-Z]{4}\s?\d{3})\b")
 
@@ -127,7 +126,6 @@ def main():
                 updated_df.to_excel(out_excel, sheet_name=sheet_name, index=False)
                 out_excel.close()
 
-                # Save to memory for download
                 with open(out_filename, "rb") as f:
                     st.download_button(
                         "📥 Download Updated Progress File",
